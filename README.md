@@ -1,1 +1,2 @@
-# BilibiliCommentAnalyzer_js
+# 哔哩哔哩评论统计工具 - 油猴脚本版
+待更新，，，
