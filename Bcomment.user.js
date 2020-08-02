@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         哔哩哔哩视频评论统计分析
 // @namespace    https://github.com/chaosinism
-// @version      0.1
+// @version      0.2
 // @description  分析视频评论区数据，在视频左上方增加按钮来查看。
 // @author       Chaosinism
 // @require      https://cdn.jsdelivr.net/npm/chart.js@2.8.0
