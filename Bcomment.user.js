@@ -16,30 +16,67 @@
     var trigger=document.createElement("input");
     trigger.type="button";
     trigger.value="下载&分析评论";
-    trigger.onclick = initiateAnalyze;
+    trigger.onclick = jsonRequest;
     var buttonPosition=document.getElementById("app");
     buttonPosition.parentNode.insertBefore(trigger, buttonPosition);
+    var progress=document.createElement("label");
+    progress.textContent="";
+    buttonPosition.parentNode.insertBefore(progress, buttonPosition);
 
     // 尝试请求评论JSON文件
-    var title = document.getElementsByClassName("video-title")[0].title;
+    var title = "";
     var aid = -1;
     var apiURL = "";
-    function initiateAnalyze()
+    var nextCursor = 0;
+    var jsonResponse = null;
+    var isInitialized = true;
+    var pageDownloaded = 0;
+    function jsonRequest()
     {
         aid = unsafeWindow.aid;
-        var largeInt = Math.round(Math.random()*1000000)+1000000;
-        apiURL = "http://api.bilibili.com/x/v2/reply/main?type=1&mode=2&oid="+aid+"&ps="+String(largeInt);
+        apiURL = "http://api.bilibili.com/x/v2/reply/main?type=1&mode=2&oid="+aid+"&next="+String(nextCursor);
+        title = document.getElementsByClassName("video-title")[0].title;
 
         GM_xmlhttpRequest ( {
             method:         "GET",
             url:            apiURL,
             responseType:   "json",
-            onload:         parseComments,
+            onload:         jsonMerge,
             onabort:        report_Error,
             onerror:        report_Error,
             ontimeout:      report_Error
         } );
 
+    }
+
+    function jsonMerge(rspObj)
+    {
+        jsonText = rspObj.responseText;
+        var jsonPage = JSON.parse(jsonText);
+        pageDownloaded += 1;
+        progress.textContent="已读取"+String(pageDownloaded)+"页评论"
+
+        // 判断是否达到评论区末尾
+        if (jsonPage.data.replies == null){
+            parseComments();
+            return;
+        }
+        else {
+            nextCursor = jsonPage.data.cursor.next;
+        }
+
+        // 合并本页评论到全部评论
+        if (isInitialized == true){
+            jsonResponse = JSON.parse(jsonText);
+            isInitialized = false;
+        }
+        else {
+            for (let i = 0; i < jsonPage.data.replies.length; ++i) {
+                jsonResponse.data.replies.push(jsonPage.data.replies[i]);
+            }
+        }
+
+        jsonRequest()
     }
 
     // 解析评论
@@ -51,11 +88,23 @@
     var profileTime = [];
     var profileUsers = {};
     var sortedUsers = [];
-    function parseComments (rspObj) {
-        jsonText = rspObj.responseText;
-        var jsonResponse = JSON.parse(jsonText);
+    function parseComments () {
+        nextCursor = 0;
+        isInitialized = true;
+        pageDownloaded = 0;
+        progress.textContent="";
+
+        if (jsonResponse.data.top.upper != null) {
+            jsonResponse.data.replies.push(jsonResponse.data.top.upper);
+        }
         allCount = jsonResponse.data.cursor.all_count;
         realFloor = jsonResponse.data.replies.length;
+        maxFloor = -1;
+        profileWordCount = [];
+        profileTime = [];
+        profileUsers = {};
+        sortedUsers = [];
+
         for (let i = 0; i < jsonResponse.data.replies.length; ++i) {
             var reply = jsonResponse.data.replies[i];
             if (reply.floor > maxFloor) {
@@ -75,6 +124,7 @@
 
         createStatWindow();
     }
+
     function report_Error (rspObj) {
         alert('下载评论JSON文件失败。');
     }
@@ -143,7 +193,7 @@
 
     // 导出JSON
     function exportJSON() {
-        var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(JSON.parse(jsonText),null,2));
+        var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonResponse,null,2));
         var dlAnchorElem = statWindow.document.getElementById('downloadAnchorElem');
         dlAnchorElem.setAttribute("href", dataStr);
         dlAnchorElem.setAttribute("download", "av"+String(aid)+".json");
